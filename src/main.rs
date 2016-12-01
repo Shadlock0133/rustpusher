@@ -1,10 +1,11 @@
+#![feature(duration_checked_ops)]
 extern crate minifb;
 extern crate rustpusher;
 
 use std::env::args;
 use std::thread::sleep;
-use std::time::{Duration, Instant};
 use minifb::Key;
+use std::time::{Duration, Instant};
 use rustpusher::*;
 
 fn main() {
@@ -18,6 +19,8 @@ fn main() {
         }
         let timer = Instant::now();
         emu.update();
-        sleep(Duration::new(0, 16666666) - timer.elapsed());
+		if let Some(value) = Duration::new(0, 16666666).checked_sub(timer.elapsed()) {
+  	      sleep(value);
+		}
     }
 }
