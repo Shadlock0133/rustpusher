@@ -104,8 +104,8 @@ impl BytePusher {
 
         let offset = self.ram[5] as usize;
 
-        for i in 0..BANK {
-            window_buffer[i] = BytePusher::color_from_palette(self.ram[offset * BANK + i]);
+        for (i, pixel) in window_buffer.iter_mut().enumerate() {
+            *pixel = BytePusher::color_from_palette(self.ram[offset * BANK + i]);
         }
 
         self.window.update_with_buffer(&window_buffer);
