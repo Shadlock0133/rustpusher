@@ -4,8 +4,8 @@ extern crate rustpusher;
 
 use std::env::args;
 use std::thread::sleep;
-use minifb::Key;
 use std::time::{Duration, Instant};
+use minifb::Key;
 use rustpusher::*;
 
 fn main() {
@@ -19,8 +19,8 @@ fn main() {
         }
         let timer = Instant::now();
         emu.update();
-		if let Some(value) = Duration::new(0, 16666666).checked_sub(timer.elapsed()) {
-  	      sleep(value);
-		}
+        if let Some(value) = Duration::new(0, 16666666).checked_sub(timer.elapsed()) {
+            sleep(value);
+        }
     }
 }
