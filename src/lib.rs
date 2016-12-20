@@ -102,10 +102,10 @@ impl BytePusher {
     pub fn update_window(&mut self) {
         let mut window_buffer: Vec<u32> = vec![0; PAGE * PAGE];
 
-        let offset = self.ram[5] as usize;
+        let offset = self.ram[5] as usize * BANK;
 
         for (i, pixel) in window_buffer.iter_mut().enumerate() {
-            *pixel = BytePusher::color_from_palette(self.ram[offset * BANK + i]);
+            *pixel = BytePusher::color_from_palette(self.ram[offset + i]);
         }
 
         self.window.update_with_buffer(&window_buffer);
