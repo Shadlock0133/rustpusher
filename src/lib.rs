@@ -79,7 +79,7 @@ impl BytePusher {
         self.ram[offset + 2] as usize
     }
 
-    pub fn cycle(&mut self) {
+    pub fn frame(&mut self) {
         let mut pc = self.address_at(2);
         for _ in 0..65536 {
             let src = self.address_at(pc);
@@ -113,7 +113,7 @@ impl BytePusher {
 
     pub fn update(&mut self) {
         self.process_input();
-        self.cycle();
+        self.frame();
         self.update_window();
         //self.audio();
     }
