@@ -111,10 +111,16 @@ impl BytePusher {
         self.window.update_with_buffer(&window_buffer);
     }
 
+    fn audio(&self) {
+        let start = self.ram[6] as usize * BANK + self.ram[7] as usize * PAGE;
+        let end = start + PAGE;
+        let buf = &self.ram[start..end];
+    }
+
     pub fn update(&mut self) {
         self.process_input();
         self.frame();
         self.update_window();
-        //self.audio();
+        self.audio();
     }
 }
