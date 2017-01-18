@@ -7,8 +7,8 @@ use std::ops::DerefMut;
 use minifb::{Key, Window, WindowOptions};
 
 const PAGE: usize = 0x100;
-const BANK: usize = 0x1_0000;
-const MEMORY: usize = 0x100_0008;
+const BANK: usize = PAGE * PAGE;
+const MEMORY: usize = BANK * PAGE + 8;
 
 pub struct BytePusher {
     pub ram: Box<[u8; MEMORY]>,
@@ -43,27 +43,27 @@ impl BytePusher {
         self.window.get_keys().map(|keys|
             for k in keys {
                 match k {
-                    Key::X    => keyboard += 0b0000000000000001,
+                    Key::X    => keyboard |= 0b0000000000000001,
 
-                    Key::Key1 => keyboard += 0b0000000000000010,
-                    Key::Key2 => keyboard += 0b0000000000000100,
-                    Key::Key3 => keyboard += 0b0000000000001000,
+                    Key::Key1 => keyboard |= 0b0000000000000010,
+                    Key::Key2 => keyboard |= 0b0000000000000100,
+                    Key::Key3 => keyboard |= 0b0000000000001000,
 
-                    Key::Q    => keyboard += 0b0000000000010000,
-                    Key::W    => keyboard += 0b0000000000100000,
-                    Key::E    => keyboard += 0b0000000001000000,
+                    Key::Q    => keyboard |= 0b0000000000010000,
+                    Key::W    => keyboard |= 0b0000000000100000,
+                    Key::E    => keyboard |= 0b0000000001000000,
 
-                    Key::A    => keyboard += 0b0000000010000000,
-                    Key::S    => keyboard += 0b0000000100000000,
-                    Key::D    => keyboard += 0b0000001000000000,
+                    Key::A    => keyboard |= 0b0000000010000000,
+                    Key::S    => keyboard |= 0b0000000100000000,
+                    Key::D    => keyboard |= 0b0000001000000000,
 
-                    Key::Z    => keyboard += 0b0000010000000000,
-                    Key::C    => keyboard += 0b0000100000000000,
+                    Key::Z    => keyboard |= 0b0000010000000000,
+                    Key::C    => keyboard |= 0b0000100000000000,
 
-                    Key::Key4 => keyboard += 0b0001000000000000,
-                    Key::R    => keyboard += 0b0010000000000000,
-                    Key::F    => keyboard += 0b0100000000000000,
-                    Key::V    => keyboard += 0b1000000000000000,
+                    Key::Key4 => keyboard |= 0b0001000000000000,
+                    Key::R    => keyboard |= 0b0010000000000000,
+                    Key::F    => keyboard |= 0b0100000000000000,
+                    Key::V    => keyboard |= 0b1000000000000000,
 
                     _ => {}
                 }
