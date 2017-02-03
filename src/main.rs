@@ -1,4 +1,3 @@
-#![feature(duration_checked_ops)]
 extern crate minifb;
 extern crate rustpusher;
 
@@ -8,15 +7,13 @@ use std::time::{Duration, Instant};
 use minifb::*;
 use rustpusher::*;
 
-const PAGE: usize = 0x100;
-const BANK: usize = PAGE * PAGE;
-
 fn main() {
     let file = args().nth(1).expect("No filename given.");
     let mut emu = BytePusher::new(&file);
-    let mut window = Window::new("BytePusher Test", PAGE, PAGE, WindowOptions::default())
+    let mut window = Window::new("BytePusher Test", PAGE, PAGE,
+        WindowOptions { scale: Scale::X2, ..WindowOptions::default() })
         .expect("Unable to create window");
-    let mut window_buffer: Vec<u32> = vec![0; PAGE * PAGE];
+    let mut _window_buffer: Vec<u32> = vec![0; PAGE * PAGE];
 
     loop {
         if !window.is_open() || window.is_key_down(Key::Escape) {
@@ -27,13 +24,9 @@ fn main() {
         emu.process_input(get_input(&window));
         emu.frame();
 
-        // TODO: properly refactor
-        let offset = emu.ram[5] as usize * BANK;
-        for (i, pixel) in window_buffer.iter_mut().enumerate() {
-            *pixel = color_from_palette(emu.ram[offset + i]);
-        }
+        _window_buffer = emu.get_video_slice().iter().map(|&x| color_from_palette(x)).collect();
 
-        window.update_with_buffer(&window_buffer);
+        window.update_with_buffer(&_window_buffer);
 
         if let Some(value) = Duration::new(0, 16666666).checked_sub(timer.elapsed()) {
             sleep(value);

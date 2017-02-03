@@ -3,9 +3,9 @@ use std::fs::File;
 use std::io::Read;
 use std::ops::DerefMut;
 
-const PAGE: usize = 0x100;
-const BANK: usize = PAGE * PAGE;
-const MEMORY: usize = BANK * PAGE + 8;
+pub const PAGE: usize = 0x100;
+pub const BANK: usize = PAGE * PAGE;
+pub const MEMORY: usize = BANK * PAGE + 8;
 
 pub struct BytePusher {
     pub ram: Box<[u8; MEMORY]>,
@@ -26,7 +26,13 @@ impl BytePusher {
     }
 
     // TODO: properly refactor for debugger use
-    // pub fn step(&mut self) {}
+    // pub fn step(&mut self, mut pc: &usize) {
+    //     let src = self.address_at(pc);
+    //     let byte = self.ram[src];
+    //     let dst = self.address_at(pc + 3);
+    //     self.ram[dst] = byte;
+    //     pc = self.address_at(pc + 6);
+    // }
 
     pub fn frame(&mut self) {
         let mut pc = self.address_at(2);
@@ -36,10 +42,11 @@ impl BytePusher {
             let dst = self.address_at(pc + 3);
             self.ram[dst] = byte;
             pc = self.address_at(pc + 6);
+            // self.step(pc);
         }
     }
 
-    pub fn get_screen_slice(&self) -> &[u8] {
+    pub fn get_video_slice(&self) -> &[u8] {
         let offset = self.ram[5] as usize * BANK;
         &self.ram[offset..offset + BANK]
     }
@@ -57,7 +64,8 @@ impl BytePusher {
     }
 
     fn address_at(&self, offset: usize) -> usize {
-        self.ram[offset] as usize * BANK + self.ram[offset + 1] as usize * PAGE +
+        self.ram[offset] as usize * BANK +
+        self.ram[offset + 1] as usize * PAGE +
         self.ram[offset + 2] as usize
     }
 }
