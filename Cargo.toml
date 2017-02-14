@@ -4,4 +4,7 @@ name = "rustpusher"
 version = "0.1.0"
 
 [dependencies]
+clap = "2.20.3"
+cpal = "0.4.4"
+futures = "0.1.10"
 minifb = "0.9.0"

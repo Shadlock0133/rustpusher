@@ -1,35 +1,110 @@
-extern crate minifb;
 extern crate rustpusher;
+extern crate clap;
+extern crate minifb;
+extern crate cpal;
+extern crate futures;
 
-use std::env::args;
-use std::thread::sleep;
-use std::time::{Duration, Instant};
-use minifb::*;
 use rustpusher::*;
+use clap::{App, Arg};
+use minifb::{Key, Scale, Window, WindowOptions};
+use futures::stream::Stream;
+use futures::task;
+use futures::task::{Executor, Run};
+use std::collections::VecDeque;
+use std::sync::Arc;
+use std::thread;
+use std::time::{Duration, Instant};
 
 fn main() {
-    let file = args().nth(1).expect("No filename given.");
-    let mut emu = BytePusher::new(&file);
-    let mut window = Window::new("BytePusher Test", PAGE, PAGE,
-        WindowOptions { scale: Scale::X2, ..WindowOptions::default() })
-        .expect("Unable to create window");
-    let mut _window_buffer: Vec<u32> = vec![0; PAGE * PAGE];
+    let name = "Rustpusher";
+    let app = App::new(name)
+                        .version("0.1.0")
+                        .author("Shadlock")
+                        .about("a Bytepusher emulator")
+                        .arg(Arg::with_name("INPUT")
+                            .help("ROM's filename")
+                            .required(true)
+                            .index(1));
+    let matches = app.get_matches();
 
-    loop {
-        if !window.is_open() || window.is_key_down(Key::Escape) {
-            break;
-        }
+    let file = matches.value_of("INPUT").expect("No filename given.");
+    let mut emu = BytePusher::new(&file);
+
+    let win_options = WindowOptions { scale: Scale::X2, ..WindowOptions::default() };
+    let mut window = Window::new(name, PAGE, PAGE, win_options)
+        .expect("Unable to create window.");
+
+    // let endpoint = cpal::get_default_endpoint().expect("Unable to get endpoint.");
+    // let format = endpoint.get_supported_formats_list().unwrap().next().unwrap();
+    // let event_loop = cpal::EventLoop::new();
+    // let (mut voice, stream) = cpal::Voice::new(&endpoint, &format, &event_loop).unwrap();
+    //
+    // let mut data_source = VecDeque::with_capacity(512);
+    //
+    // voice.play();
+    //
+    // struct MyExecutor;
+    //
+    // impl Executor for MyExecutor {
+    //     fn execute(&self, r: Run) {
+    //         r.run();
+    //     }
+    // }
+    //
+    // let executor = Arc::new(MyExecutor {});
+    //
+    // task::spawn(stream.for_each(move |buffer| -> Result<_, ()> {
+    //     match buffer {
+    //         cpal::UnknownTypeBuffer::U16(mut buffer) => {
+    //             for (sample, value) in buffer.chunks_mut(format.channels.len()).zip(&mut data_source) {
+    //                 let value = ((*value * 0.5 + 0.5) * std::u16::MAX as f32) as u16;
+    //                 for out in sample.iter_mut() { *out = value; }
+    //             }
+    //         },
+    //
+    //         cpal::UnknownTypeBuffer::I16(mut buffer) => {
+    //             for (sample, value) in buffer.chunks_mut(format.channels.len()).zip(&mut data_source) {
+    //                 let value = (*value * std::i16::MAX as f32) as i16;
+    //                 for out in sample.iter_mut() { *out = value; }
+    //             }
+    //         },
+    //
+    //         cpal::UnknownTypeBuffer::F32(mut buffer) => {
+    //             for (sample, value) in buffer.chunks_mut(format.channels.len()).zip(&mut data_source) {
+    //                 for out in sample.iter_mut() { *out = *value; }
+    //             }
+    //         },
+    //     };
+    //     Ok(())
+    // })).execute(executor);
+    //
+    // thread::spawn(move || {
+    //     event_loop.run();
+    // });
+
+    while window.is_open() && !window.is_key_down(Key::Escape) {
         let timer = Instant::now();
 
         emu.process_input(get_input(&window));
         emu.frame();
 
-        _window_buffer = emu.get_video_slice().iter().map(|&x| color_from_palette(x)).collect();
+        let window_buffer: Vec<u32> = emu
+            .get_video_slice()
+            .iter()
+            .map(|&x| color_from_palette(x))
+            .collect();
+        window.update_with_buffer(&window_buffer);
 
-        window.update_with_buffer(&_window_buffer);
+        // TODO: Audio stuff
 
-        if let Some(value) = Duration::new(0, 16666666).checked_sub(timer.elapsed()) {
-            sleep(value);
+        if !window.is_key_down(Key::T) {
+            window.set_title(name);
+            if let Some(value) = Duration::new(0, 16666666).checked_sub(timer.elapsed()) {
+                thread::sleep(value);
+            }
+        } else {
+            let name_t = name.to_owned() + " - Turbo";
+            window.set_title(&name_t);
         }
     }
 }
@@ -64,14 +139,4 @@ fn get_input(ref window: &Window) -> (u8, u8) {
         }
     });
     input
-}
-
-fn color_from_palette(index: u8) -> u32 {
-    match index {
-        0x00...0xd7 => {
-            index as u32 / 36 * 0x33 * BANK as u32 + index as u32 / 6 % 6 * 0x33 * PAGE as u32 +
-            index as u32 % 6 * 0x33
-        }
-        _ => 0x000000,
-    }
 }
