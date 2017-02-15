@@ -40,8 +40,8 @@ fn main() {
         bits_per_sample: 8,
         sample_format: hound::SampleFormat::Int
     };
-    let _wav_file = matches.value_of("INPUT").unwrap_or("output.wav");
-    let mut writer = hound::WavWriter::create("output.wav", audio_spec).unwrap();
+    let wav_file = matches.value_of("WAVOUT").unwrap_or("output.wav");
+    let mut writer = hound::WavWriter::create(wav_file, audio_spec).unwrap();
 
     while window.is_open() && !window.is_key_down(Key::Escape) {
         let timer = Instant::now();
