@@ -1,17 +1,11 @@
 extern crate rustpusher;
 extern crate clap;
 extern crate minifb;
-extern crate cpal;
-extern crate futures;
+extern crate hound;
 
 use rustpusher::*;
 use clap::{App, Arg};
 use minifb::{Key, Scale, Window, WindowOptions};
-use futures::stream::Stream;
-use futures::task;
-use futures::task::{Executor, Run};
-use std::collections::VecDeque;
-use std::sync::Arc;
 use std::thread;
 use std::time::{Duration, Instant};
 
@@ -21,66 +15,33 @@ fn main() {
                         .version("0.1.0")
                         .author("Shadlock")
                         .about("a Bytepusher emulator")
+                        .arg(Arg::with_name("wavout")
+                            .help("Output WAV's filename")
+                            .short("-w")
+                            .long("--wav")
+                            .takes_value(true)
+                            .value_name("WAVOUT"))
                         .arg(Arg::with_name("INPUT")
                             .help("ROM's filename")
                             .required(true)
                             .index(1));
     let matches = app.get_matches();
 
-    let file = matches.value_of("INPUT").expect("No filename given.");
-    let mut emu = BytePusher::new(&file);
+    let rom_file = matches.value_of("INPUT").unwrap();
+    let mut emu = BytePusher::new(&rom_file);
 
     let win_options = WindowOptions { scale: Scale::X2, ..WindowOptions::default() };
     let mut window = Window::new(name, PAGE, PAGE, win_options)
         .expect("Unable to create window.");
 
-    // let endpoint = cpal::get_default_endpoint().expect("Unable to get endpoint.");
-    // let format = endpoint.get_supported_formats_list().unwrap().next().unwrap();
-    // let event_loop = cpal::EventLoop::new();
-    // let (mut voice, stream) = cpal::Voice::new(&endpoint, &format, &event_loop).unwrap();
-    //
-    // let mut data_source = VecDeque::with_capacity(512);
-    //
-    // voice.play();
-    //
-    // struct MyExecutor;
-    //
-    // impl Executor for MyExecutor {
-    //     fn execute(&self, r: Run) {
-    //         r.run();
-    //     }
-    // }
-    //
-    // let executor = Arc::new(MyExecutor {});
-    //
-    // task::spawn(stream.for_each(move |buffer| -> Result<_, ()> {
-    //     match buffer {
-    //         cpal::UnknownTypeBuffer::U16(mut buffer) => {
-    //             for (sample, value) in buffer.chunks_mut(format.channels.len()).zip(&mut data_source) {
-    //                 let value = ((*value * 0.5 + 0.5) * std::u16::MAX as f32) as u16;
-    //                 for out in sample.iter_mut() { *out = value; }
-    //             }
-    //         },
-    //
-    //         cpal::UnknownTypeBuffer::I16(mut buffer) => {
-    //             for (sample, value) in buffer.chunks_mut(format.channels.len()).zip(&mut data_source) {
-    //                 let value = (*value * std::i16::MAX as f32) as i16;
-    //                 for out in sample.iter_mut() { *out = value; }
-    //             }
-    //         },
-    //
-    //         cpal::UnknownTypeBuffer::F32(mut buffer) => {
-    //             for (sample, value) in buffer.chunks_mut(format.channels.len()).zip(&mut data_source) {
-    //                 for out in sample.iter_mut() { *out = *value; }
-    //             }
-    //         },
-    //     };
-    //     Ok(())
-    // })).execute(executor);
-    //
-    // thread::spawn(move || {
-    //     event_loop.run();
-    // });
+    let audio_spec = hound::WavSpec {
+        channels: 2,
+        sample_rate: 15360,
+        bits_per_sample: 8,
+        sample_format: hound::SampleFormat::Int
+    };
+    let _wav_file = matches.value_of("INPUT").unwrap_or("output.wav");
+    let mut writer = hound::WavWriter::create("output.wav", audio_spec).unwrap();
 
     while window.is_open() && !window.is_key_down(Key::Escape) {
         let timer = Instant::now();
@@ -95,15 +56,18 @@ fn main() {
             .collect();
         window.update_with_buffer(&window_buffer);
 
-        // TODO: Audio stuff
+        for sample in emu.get_audio_slice() {
+            writer.write_sample(*sample as i8).unwrap();
+            writer.write_sample(*sample as i8).unwrap();
+        }
 
         if !window.is_key_down(Key::T) {
             window.set_title(name);
-            if let Some(value) = Duration::new(0, 16666666).checked_sub(timer.elapsed()) {
+            if let Some(value) = Duration::new(0, 100_000_000 / 60).checked_sub(timer.elapsed()) {
                 thread::sleep(value);
             }
         } else {
-            let name_t = name.to_owned() + " - Turbo";
+            let name_t = format!("{} - Turbo", name);
             window.set_title(&name_t);
         }
     }
