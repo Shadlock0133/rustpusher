@@ -63,7 +63,7 @@ fn main() {
 
         if !window.is_key_down(Key::T) {
             window.set_title(name);
-            if let Some(value) = Duration::new(0, 100_000_000 / 60).checked_sub(timer.elapsed()) {
+            if let Some(value) = Duration::new(0, 1_000_000_000 / 60).checked_sub(timer.elapsed()) {
                 thread::sleep(value);
             }
         } else {
