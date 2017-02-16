@@ -4,4 +4,5 @@ Simple emulator of [BytePusher](https://esolangs.org/wiki/BytePusher) written in
 
 ### Features
  - [x] Basics (main loop, graphics, input)
- - [ ] Sound
+ - [ ] Sound (currently outputs to wav file)
+ - [ ] Better GUI
