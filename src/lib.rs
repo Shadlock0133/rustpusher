@@ -1,82 +1,108 @@
 #![feature(box_syntax)]
-use std::fs::File;
-use std::io::Read;
-use std::ops::DerefMut;
+extern crate clap;
+extern crate minifb;
+extern crate hound;
 
-pub const PAGE: usize = 0x100;
-pub const BANK: usize = PAGE * PAGE;
-pub const MEMORY: usize = BANK * PAGE + 8;
+mod cpu;
 
-pub struct BytePusher {
-    pub ram: Box<[u8; MEMORY]>,
-    // pub step_counter: u16,
+use cpu::*;
+use clap::{App, Arg};
+use minifb::{Key, Scale, Window, WindowOptions};
+use std::thread;
+use std::time::{Duration, Instant};
+
+pub fn run() {
+    let name = "Rustpusher";
+    let app = App::new(name)
+                        .version("0.1.0")
+                        .author("Shadlock")
+                        .about("a Bytepusher emulator")
+                        .arg(Arg::with_name("wavout")
+                            .help("Output WAV's filename")
+                            .short("-w")
+                            .long("--wav")
+                            .takes_value(true))
+                        .arg(Arg::with_name("INPUT")
+                            .help("ROM's filename")
+                            .required(true)
+                            .index(1));
+    let matches = app.get_matches();
+
+    let mut emu = Cpu::new();
+    let rom_file = matches.value_of("INPUT").unwrap();
+    emu.load_file(rom_file);
+
+    let win_options = WindowOptions { scale: Scale::X2, ..WindowOptions::default() };
+    let mut window = Window::new(name, PAGE, PAGE, win_options)
+        .expect("Unable to create window.");
+
+    let audio_spec = hound::WavSpec {
+        channels: 2,
+        sample_rate: 15360,
+        bits_per_sample: 8,
+        sample_format: hound::SampleFormat::Int
+    };
+    let wav_file = matches.value_of("wavout").unwrap_or("output.wav");
+    let mut writer = hound::WavWriter::create(wav_file, audio_spec).unwrap();
+
+    while window.is_open() && !window.is_key_down(Key::Escape) {
+        let timer = Instant::now();
+
+        emu.process_input(get_input(&window));
+        emu.frame();
+
+        let window_buffer: Vec<u32> = emu
+            .get_video_slice()
+            .iter()
+            .map(|&x| color_from_palette(x))
+            .collect();
+        window.update_with_buffer(&window_buffer);
+
+        for sample in emu.get_audio_slice() {
+            writer.write_sample(*sample as i8).unwrap(); // Left and
+            writer.write_sample(*sample as i8).unwrap(); // Right channels
+        }
+
+        if !window.is_key_down(Key::T) {
+            window.set_title(name);
+            if let Some(value) = Duration::new(0, 1_000_000_000 / 60).checked_sub(timer.elapsed()) {
+                thread::sleep(value);
+            }
+        } else {
+            let name_t = format!("{} - Turbo", name);
+            window.set_title(&name_t);
+        }
+    }
 }
 
-impl BytePusher {
-    pub fn new(file: &str) -> BytePusher {
-        BytePusher {
-            ram: BytePusher::read_file(file),
-            // step_counter: 0,
+fn get_input(window: &Window) -> (u8, u8) {
+    let mut input = (0u8, 0u8);
+    window.get_keys().map(|keys| for k in keys {
+        match k {
+            Key::X => input.1 |= 0b00000001,
+
+            Key::Key1 => input.1 |= 0b00000010,
+            Key::Key2 => input.1 |= 0b00000100,
+            Key::Key3 => input.1 |= 0b00001000,
+
+            Key::Q => input.1 |= 0b00010000,
+            Key::W => input.1 |= 0b00100000,
+            Key::E => input.1 |= 0b01000000,
+
+            Key::A => input.1 |= 0b10000000,
+            Key::S => input.0 |= 0b00000001,
+            Key::D => input.0 |= 0b00000010,
+
+            Key::Z => input.0 |= 0b00000100,
+            Key::C => input.0 |= 0b00001000,
+
+            Key::Key4 => input.0 |= 0b00010000,
+            Key::R => input.0 |= 0b00100000,
+            Key::F => input.0 |= 0b01000000,
+            Key::V => input.0 |= 0b10000000,
+
+            _ => {}
         }
-    }
-
-    pub fn process_input(&mut self, input: (u8, u8)) {
-        self.ram[0] = input.0;
-        self.ram[1] = input.1;
-    }
-
-    // TODO: properly refactor for debugger use
-    // pub fn step(&mut self, mut pc: &usize) {
-    //     let src = self.address_at(pc);
-    //     let byte = self.ram[src];
-    //     let dst = self.address_at(pc + 3);
-    //     self.ram[dst] = byte;
-    //     pc = self.address_at(pc + 6);
-    // }
-
-    pub fn frame(&mut self) {
-        let mut pc = self.address_at(2);
-        for _ in 0..65536 {
-            let src = self.address_at(pc);
-            let byte = self.ram[src];
-            let dst = self.address_at(pc + 3);
-            self.ram[dst] = byte;
-            pc = self.address_at(pc + 6);
-            // self.step(pc);
-        }
-    }
-
-    pub fn get_video_slice(&self) -> &[u8] {
-        let offset = self.ram[5] as usize * BANK;
-        &self.ram[offset..offset + BANK]
-    }
-
-    pub fn get_audio_slice(&self) -> &[u8] {
-        let offset = self.ram[6] as usize * BANK + self.ram[7] as usize * PAGE;
-        &self.ram[offset..offset + PAGE]
-    }
-
-    fn read_file(file: &str) -> Box<[u8; MEMORY]> {
-        let mut file = File::open(file).expect("Unable to open file.");
-        let mut buf = box [0u8; MEMORY];
-        file.read(buf.deref_mut()).expect("Unable to read file.");
-        buf
-    }
-
-    fn address_at(&self, offset: usize) -> usize {
-        self.ram[offset] as usize * BANK +
-        self.ram[offset + 1] as usize * PAGE +
-        self.ram[offset + 2] as usize
-    }
-}
-
-pub fn color_from_palette(index: u8) -> u32 {
-    match index {
-        0x00...0xd7 => {
-            index as u32 / 36 * 0x33 * BANK as u32 +
-            index as u32 / 6 % 6 * 0x33 * PAGE as u32 +
-            index as u32 % 6 * 0x33
-        }
-        _ => 0x000000,
-    }
+    });
+    input
 }
