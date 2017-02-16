@@ -12,8 +12,7 @@ use std::thread;
 use std::time::{Duration, Instant};
 
 pub fn run() {
-    let name = "Rustpusher";
-    let app = App::new(name)
+    let app = App::new("Rustpusher")
                         .version("0.1.0")
                         .author("Shadlock")
                         .about("a Bytepusher emulator")
@@ -26,6 +25,7 @@ pub fn run() {
                             .help("ROM's filename")
                             .required(true)
                             .index(1));
+    let name = &String::from(app.get_name());
     let matches = app.get_matches();
 
     let mut emu = Cpu::new();
