@@ -42,8 +42,11 @@ pub fn run() {
         bits_per_sample: 8,
         sample_format: hound::SampleFormat::Int
     };
-    let wav_file = matches.value_of("wavout").unwrap_or("output.wav");
-    let mut writer = hound::WavWriter::create(wav_file, audio_spec).unwrap();
+    let wav_file = matches.value_of("wavout");
+    let mut writer = match wav_file {
+        Some(wav_file) => Some(hound::WavWriter::create(wav_file, audio_spec).unwrap()),
+        None => None
+    };
 
     while window.is_open() && !window.is_key_down(Key::Escape) {
         let timer = Instant::now();
@@ -58,9 +61,11 @@ pub fn run() {
             .collect();
         window.update_with_buffer(&window_buffer);
 
-        for sample in emu.get_audio_slice() {
-            writer.write_sample(*sample as i8).unwrap(); // Left and
-            writer.write_sample(*sample as i8).unwrap(); // Right channels
+        if let Some(ref mut writer) = writer {
+            for sample in emu.get_audio_slice() {
+                writer.write_sample(*sample as i8).unwrap();
+                writer.write_sample(*sample as i8).unwrap();
+            }
         }
 
         if !window.is_key_down(Key::T) {
