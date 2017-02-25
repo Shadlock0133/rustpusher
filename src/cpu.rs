@@ -3,21 +3,22 @@ use std::io::Read;
 
 pub const PAGE: usize = 0x100;
 pub const BANK: usize = PAGE * PAGE;
-pub const MEMORY: usize = BANK * PAGE + 8;
+pub const MEMORY: usize = BANK * PAGE;
+pub const FULL_MEMORY: usize = MEMORY + 8;
 pub const KEYBOARD: usize = 0;
 pub const PC: usize = 2;
 pub const VIDEO: usize = 5;
 pub const AUDIO: usize = 6;
 
 pub struct Cpu {
-    pub ram: Box<[u8; MEMORY]>,
+    pub ram: Box<[u8; FULL_MEMORY]>,
     pub step_counter: u16,
 }
 
 impl Cpu {
     pub fn new() -> Self {
         Self {
-            ram: box [0; MEMORY],
+            ram: box [0; FULL_MEMORY],
             step_counter: 0,
         }
     }
@@ -25,7 +26,10 @@ impl Cpu {
     #[allow(unused_io_amount)]
     pub fn load_file(&mut self, file: &str) {
         let mut file = File::open(file).unwrap();
-        file.read(&mut self.ram[..]).expect("Unable to read file.");
+        file.read(&mut self.ram[..MEMORY]).expect("Unable to read file.");
+        for x in 0..8 {
+            assert!(self.ram[MEMORY + x] == 0);
+        }
     }
 
     pub fn process_input(&mut self, input: (u8, u8)) {
