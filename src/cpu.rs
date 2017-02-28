@@ -25,6 +25,7 @@ impl Cpu {
         }
     }
 
+    #[allow(unknown_lints)]
     #[allow(unused_io_amount)]
     pub fn load_file(&mut self, file: &str) {
         let mut file = File::open(file).unwrap();
