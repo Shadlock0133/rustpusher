@@ -60,7 +60,7 @@ impl Emu {
             let window_buffer: Vec<u32> = self.cpu
                 .get_video_slice()
                 .iter()
-                .map(|&x| Cpu::color_from_palette(x))
+                .map(|&x| Self::color_from_palette(x))
                 .collect();
             self.window.update_with_buffer(&window_buffer);
 
@@ -76,6 +76,17 @@ impl Emu {
                     thread::sleep(value);
                 }
             }
+        }
+    }
+
+    fn color_from_palette(index: u8) -> u32 {
+        match index {
+            0x00...0xd7 => {
+                index as u32 / 36 * 0x33 * BANK as u32 +
+                index as u32 / 6 % 6 * 0x33 * PAGE as u32 +
+                index as u32 % 6 * 0x33
+            }
+            _ => 0x000000,
         }
     }
 
