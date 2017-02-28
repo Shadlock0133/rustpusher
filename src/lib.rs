@@ -35,15 +35,13 @@ impl Emu {
             bits_per_sample: 8,
             sample_format: hound::SampleFormat::Int
         };
-        let writer = match wav_file {
+        let audio_output = match wav_file {
             Some(wav_file) => Some(WavWriter::create(wav_file, audio_spec).unwrap()),
             None => None
         };
 
         Emu {
-            cpu: cpu,
-            window: window,
-            audio_output: writer,
+            cpu, window, audio_output,
             turbo: false,
             paused: false,
         }
