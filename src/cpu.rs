@@ -31,7 +31,7 @@ impl Cpu {
         let mut file = File::open(file).unwrap();
         file.read(&mut self.ram[..MEMORY]).expect("Unable to read file.");
         for x in 0..8 {
-            assert!(self.ram[MEMORY + x] == 0);
+            assert_eq!(self.ram[MEMORY + x], 0);
         }
     }
 
