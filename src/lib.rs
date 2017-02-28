@@ -62,7 +62,7 @@ impl Emu {
             let window_buffer: Vec<u32> = self.cpu
                 .get_video_slice()
                 .iter()
-                .map(|&x| color_from_palette(x))
+                .map(|&x| Cpu::color_from_palette(x))
                 .collect();
             self.window.update_with_buffer(&window_buffer);
 

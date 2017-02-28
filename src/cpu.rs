@@ -69,15 +69,15 @@ impl Cpu {
         self.ram[offset + 1] as usize * PAGE +
         self.ram[offset + 2] as usize
     }
-}
 
-pub fn color_from_palette(index: u8) -> u32 {
-    match index {
-        0x00...0xd7 => {
-            index as u32 / 36 * 0x33 * BANK as u32 +
-            index as u32 / 6 % 6 * 0x33 * PAGE as u32 +
-            index as u32 % 6 * 0x33
+    pub fn color_from_palette(index: u8) -> u32 {
+        match index {
+            0x00...0xd7 => {
+                index as u32 / 36 * 0x33 * BANK as u32 +
+                index as u32 / 6 % 6 * 0x33 * PAGE as u32 +
+                index as u32 % 6 * 0x33
+            }
+            _ => 0x000000,
         }
-        _ => 0x000000,
     }
 }
