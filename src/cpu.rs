@@ -12,7 +12,7 @@ pub const AUDIO: usize = 6;
 
 pub struct Cpu {
     pub ram: Box<[u8; FULL_MEMORY]>,
-    pub step_counter: u16,
+    pub step_counter: u32,
 }
 
 impl Cpu {
@@ -48,8 +48,8 @@ impl Cpu {
 
     pub fn finish_frame(&mut self) {
         let mut pc = self.address_at(PC);
-        while self.step_counter < 65535 {
             pc = self.step(pc);
+        while self.step_counter <= 65535 {
         }
         self.step_counter = 0;
     }
