@@ -21,7 +21,7 @@ pub struct Emu {
 }
 
 impl Emu {
-    pub fn new(rom_file: &str, wav_file: Option<&str>) -> Self {
+    pub fn from_file(rom_file: &str, wav_file: Option<&str>) -> Self {
         let mut cpu = Cpu::new();
         cpu.load_file(rom_file);
 

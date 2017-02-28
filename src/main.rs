@@ -22,6 +22,6 @@ fn main() {
     let rom_file = matches.value_of("INPUT").unwrap();
     let wav_file = matches.value_of("wavout");
 
-    let mut emu = Emu::new(rom_file, wav_file);
+    let mut emu = Emu::from_file(rom_file, wav_file);
     emu.run();
 }
