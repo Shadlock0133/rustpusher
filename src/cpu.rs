@@ -12,6 +12,7 @@ pub const AUDIO: usize = 6;
 
 pub struct Cpu {
     pub ram: Box<[u8; FULL_MEMORY]>,
+    pub pc: u32,
     pub step_counter: u32,
 }
 
@@ -19,6 +20,7 @@ impl Cpu {
     pub fn new() -> Self {
         Self {
             ram: box [0; FULL_MEMORY],
+            pc: 0,
             step_counter: 0,
         }
     }
@@ -37,19 +39,20 @@ impl Cpu {
         self.ram[KEYBOARD + 1] = input.1;
     }
 
-    pub fn step(&mut self, pc: usize) -> usize {
+    pub fn step(&mut self) {
         self.step_counter += 1;
+        let pc = self.pc as usize;
         let src = self.address_at(pc);
         let byte = self.ram[src];
         let dst = self.address_at(pc + 3);
         self.ram[dst] = byte;
-        self.address_at(pc + 6)
+        self.pc = self.address_at(pc + 6) as u32;
     }
 
     pub fn finish_frame(&mut self) {
-        let mut pc = self.address_at(PC);
-            pc = self.step(pc);
+        self.pc = self.address_at(PC) as u32;
         while self.step_counter <= 65535 {
+            self.step();
         }
         self.step_counter = 0;
     }
