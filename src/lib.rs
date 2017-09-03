@@ -35,10 +35,7 @@ impl Emu {
             bits_per_sample: 8,
             sample_format: hound::SampleFormat::Int
         };
-        let audio_output = match wav_file {
-            Some(wav_file) => Some(WavWriter::create(wav_file, audio_spec).unwrap()),
-            None => None
-        };
+        let audio_output = wav_file.map(|wav_file| WavWriter::create(wav_file, audio_spec).unwrap());
 
         Emu {
             cpu, window, audio_output,
