@@ -1,19 +1,11 @@
 #![feature(box_syntax)]
-#[macro_use] extern crate libretro_backend;
-#[macro_use] extern crate error_chain;
 
+#[macro_use]
+extern crate libretro_backend;
 use libretro_backend::*;
 
 mod cpu;
 use cpu::*;
-
-mod errors {
-    error_chain!{
-        foreign_links {
-            Io(::std::io::Error);
-        }
-    }
-}
 
 pub struct RPCore {
     cpu: Cpu,
@@ -29,7 +21,7 @@ impl RPCore {
             cpu: Cpu::new(),
             palette: Self::default_palette(),
             video_buffer: [0; BANK],
-            audio_buffer: Vec::with_capacity(15360),
+            audio_buffer: Vec::with_capacity(512),
             game_data: None,
         }
     }
@@ -79,7 +71,7 @@ impl Core for RPCore {
                 LoadGameResult::Success(
                     AudioVideoInfo::new()
                         .video(256, 256, 60.0, PixelFormat::ARGB8888)
-                        .audio(15360.0)
+                        .audio(cpu::SAMPLE_RATE as _)
                 )
             }
             Err(_) => LoadGameResult::Failed(game_data)

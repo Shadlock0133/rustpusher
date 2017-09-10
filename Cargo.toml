@@ -1,11 +1,10 @@
 [package]
 authors = ["Shadlock0133 <tomek-kubel2@wp.pl>"]
 name = "rustpusher"
-version = "0.1.0"
+version = "1.0.0"
 
 [lib]
 crate-type = ["cdylib"]
 
 [dependencies]
 libretro-backend = "0.2"
-error-chain = "0.11"

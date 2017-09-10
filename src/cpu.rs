@@ -1,17 +1,20 @@
 use std::fs::File;
-use std::io::{Read, Write};
+use std::io::{self, Read, Write};
 
-use errors::*;
-
+//Sizes
 pub const PAGE: usize = 0x100;
-pub const BANK: usize = PAGE * PAGE;
-pub const MEMORY: usize = BANK * PAGE;
+pub const BANK: usize = PAGE * 256;
+pub const MEMORY: usize = BANK * 256;
 pub const FULL_MEMORY: usize = MEMORY + 8;
+pub const SAMPLE_RATE: usize = PAGE * 60;
 
+// Offsets
 pub const KEYBOARD: usize = 0;
 pub const PC: usize = 2;
 pub const VIDEO: usize = 5;
 pub const AUDIO: usize = 6;
+
+type CpuResult = io::Result<()>;
 
 pub struct Cpu {
     memory: Box<[u8; FULL_MEMORY]>,
@@ -28,13 +31,13 @@ impl Cpu {
         }
     }
 
-    pub fn load_file(&mut self, file: &str) -> Result<()> {
+    pub fn load_file(&mut self, file: &str) -> CpuResult {
         let mut file = File::open(file)?;
         file.read(&mut self.memory[..MEMORY])?;
         Ok(())
     }
 
-    pub fn load_data(&mut self, data: &[u8]) -> Result<()> {
+    pub fn load_data(&mut self, data: &[u8]) -> CpuResult {
         (&mut self.memory[..MEMORY]).write(data)?;
         Ok(())
     }
