@@ -7,4 +7,8 @@ version = "1.0.0"
 crate-type = ["cdylib"]
 
 [dependencies]
-libretro-backend = "0.2"
+libretro-backend = { git = "https://github.com/Shadlock0133/libretro-backend" }
+
+[profile.release]
+lto = true
+panic = "abort"

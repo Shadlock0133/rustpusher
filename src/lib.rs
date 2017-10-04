@@ -9,9 +9,9 @@ use cpu::*;
 
 pub struct RPCore {
     cpu: Cpu,
-    palette: [u32; 256],
-    video_buffer: [u32; BANK],
-    audio_buffer: Vec<i16>,
+    palette: [(u8, u8, u8, u8); 256],
+    video_buffer: [u8; BANK * 4],
+    audio_buffer: Vec<(i16, i16)>,
     game_data: Option<GameData>,
 }
 
@@ -20,22 +20,23 @@ impl RPCore {
         RPCore {
             cpu: Cpu::new(),
             palette: Self::default_palette(),
-            video_buffer: [0; BANK],
+            video_buffer: [0; BANK * 4],
             audio_buffer: Vec::with_capacity(512),
             game_data: None,
         }
     }
 
-    fn default_palette() -> [u32; 256] {
-        let mut palette = [0; 256];
+    fn default_palette() -> [(u8, u8, u8, u8); 256] {
+        let mut palette = [(0, 0 , 0, 0); 256];
         for (index, out) in palette.iter_mut().enumerate() {
             *out = match index {
                 0x00...0xd7 => {
-                    index as u32 / 36 * 0x33 * BANK as u32 +
-                    index as u32 / 6 % 6 * 0x33 * PAGE as u32 +
-                    index as u32 % 6 * 0x33
+                    ((index as u32 / 36 * 0x33) as u8,
+                    (index as u32 / 6 % 6 * 0x33) as u8,
+                    (index as u32 % 6 * 0x33) as u8,
+                    0)
                 }
-                _ => 0x000000,
+                _ => (0, 0, 0, 0),
             }
         }
         palette
@@ -86,43 +87,49 @@ impl Core for RPCore {
 
     fn on_run(&mut self, handle: &mut RuntimeHandle) {
         macro_rules! update_input {
-            ( $( $button:ident => $expr:expr ,)* ) => (
+            ( $player:expr, $( $button:ident => $expr:expr ,)* ) => (
+                #[allow(unused_imports)]
                 use JoypadButton::*;
-                $( if handle.is_joypad_button_pressed(0, $button) { $expr } )*
+                $( if handle.is_joypad_button_pressed($player, $button) { $expr } )*
             )
         }
         let mut input = (0u8, 0u8);
-        update_input!(
-            Up     => input.1 |= 0x1,
-            Down   => input.1 |= 0x2,
-            Left   => input.1 |= 0x4,
-            Right  => input.1 |= 0x8,
-            A      => input.1 |= 0x10,
-            B      => input.1 |= 0x20,
-            X      => input.1 |= 0x40,
-            Y      => input.1 |= 0x80,
-            Select => input.0 |= 0x1,
-            Start  => input.0 |= 0x2,
-            L1     => input.0 |= 0x4,
-            L2     => input.0 |= 0x8,
-            L3     => input.0 |= 0x10,
-            R1     => input.0 |= 0x20,
-            R2     => input.0 |= 0x40,
-            R3     => input.0 |= 0x80,
+        update_input!(0,
+            Up    => input.0 |= 0x1,
+            Down  => input.0 |= 0x2,
+            Left  => input.0 |= 0x4,
+            Right => input.0 |= 0x8,
+            A     => input.0 |= 0x10,
+            B     => input.0 |= 0x20,
+            X     => input.0 |= 0x40,
+            Y     => input.0 |= 0x80,
+        );
+        update_input!(1,
+            Up    => input.1 |= 0x1,
+            Down  => input.1 |= 0x2,
+            Left  => input.1 |= 0x4,
+            Right => input.1 |= 0x8,
+            A     => input.1 |= 0x10,
+            B     => input.1 |= 0x20,
+            X     => input.1 |= 0x40,
+            Y     => input.1 |= 0x80,
         );
         self.cpu.process_input(input);
 
         self.cpu.finish_frame();
 
-        for (&pixel, out) in self.cpu.get_video_slice().iter().zip(self.video_buffer.iter_mut()) {
-            *out = self.palette[pixel as usize];
+        for (index, &pixel) in self.cpu.get_video_slice().iter().enumerate() {
+            let (r, g, b, a) = self.palette[pixel as usize];
+            self.video_buffer[index * 4 + 0] = r;
+            self.video_buffer[index * 4 + 1] = g;
+            self.video_buffer[index * 4 + 2] = b;
+            self.video_buffer[index * 4 + 3] = a;
         }
-        handle.upload_video_frame(as_bytes(&self.video_buffer));
+        handle.upload_video_frame(&self.video_buffer);
 
         for &x in self.cpu.get_audio_slice().iter() {
             let x = (x as i16) << 8;
-            self.audio_buffer.push(x);
-            self.audio_buffer.push(x);
+            self.audio_buffer.push((x, x));
         }
         handle.upload_audio_frame(&self.audio_buffer[..]);
         self.audio_buffer.clear();
@@ -136,15 +143,6 @@ impl Core for RPCore {
                 let _ = self.cpu.load_file(path);
             }
         }
-    }
-}
-
-#[inline]
-pub fn as_bytes<T: Copy>(array: &[T]) -> &[u8] {
-    unsafe {
-        std::slice::from_raw_parts(
-            std::mem::transmute(array.as_ptr()), 
-            std::mem::size_of::<T>() * array.len())
     }
 }
 
