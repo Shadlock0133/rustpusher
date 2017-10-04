@@ -1,4 +1,4 @@
-#![feature(box_syntax)]
+#![feature(box_syntax, slice_get_slice)]
 
 #[macro_use]
 extern crate libretro_backend;
