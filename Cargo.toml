@@ -8,6 +8,7 @@ crate-type = ["cdylib"]
 
 [dependencies]
 libretro-backend = { git = "https://github.com/Shadlock0133/libretro-backend" }
+rustpusher-cpu = { path = "rustpusher-cpu" }
 
 [profile.release]
 lto = true

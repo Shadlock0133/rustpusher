@@ -1,11 +1,9 @@
-#![feature(box_syntax, slice_get_slice)]
-
+extern crate rustpusher_cpu;
 #[macro_use]
 extern crate libretro_backend;
-use libretro_backend::*;
 
-mod cpu;
-use cpu::*;
+use rustpusher_cpu::*;
+use libretro_backend::*;
 
 pub struct RPCore {
     cpu: Cpu,
@@ -72,7 +70,7 @@ impl Core for RPCore {
                 LoadGameResult::Success(
                     AudioVideoInfo::new()
                         .video(256, 256, 60.0, PixelFormat::ARGB8888)
-                        .audio(cpu::SAMPLE_RATE as _)
+                        .audio(SAMPLE_RATE as _)
                 )
             }
             Err(_) => LoadGameResult::Failed(game_data)
