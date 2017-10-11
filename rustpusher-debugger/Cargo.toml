@@ -1,0 +1,9 @@
+[package]
+authors = ["Shadlock0133 <tomek-kubel2@wp.pl>"]
+name = "rustpusher-debugger"
+version = "0.1.0"
+
+[dependencies]
+clap = "2.26.2"
+minifb = "0.10.3"
+rustpusher-cpu = { path = "../rustpusher-cpu" }

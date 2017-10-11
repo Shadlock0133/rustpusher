@@ -1,6 +1,6 @@
 [package]
+authors = ["Shadlock0133 <tomek-kubel2@wp.pl>"]
 name = "rustpusher-cpu"
-version = "0.1.0"
-authors = ["Aurora <tomek-kubel2@wp.pl>"]
+version = "1.0.0"
 
 [dependencies]

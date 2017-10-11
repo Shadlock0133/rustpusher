@@ -3,6 +3,7 @@
 use std::fs::File;
 use std::io::{self, Read, Write};
 use std::ops::{Index, IndexMut};
+use std::path::Path;
 use std::slice::SliceIndex;
 
 // Sizes
@@ -84,7 +85,7 @@ impl Cpu {
         }
     }
 
-    pub fn load_file(&mut self, file: &str) -> CpuResult {
+    pub fn load_file<P: AsRef<Path>>(&mut self, file: P) -> CpuResult {
         let mut file = File::open(file)?;
         file.read(&mut self.memory[..MEMORY])?;
         Ok(())
@@ -104,8 +105,10 @@ impl Cpu {
         self.memory[INPUT + 1] = input.1;
     }
 
-    #[inline]
-    fn step(&mut self) {
+    pub fn step(&mut self) {
+        if self.step_counter == 0 {
+            self.pc = self.memory.address_at(PC) as u32;
+        }
         self.step_counter += 1;
         let pc = self.pc as usize;
         let src = self.memory.address_at(pc);
@@ -113,14 +116,19 @@ impl Cpu {
         let dst = self.memory.address_at(pc + 3);
         self.memory[dst] = byte;
         self.pc = self.memory.address_at(pc + 6) as u32;
+        if self.step_counter > 65535 {
+            self.step_counter = 0;
+        }
+    }
+
+    pub fn get_step(&self) -> u32 {
+        self.step_counter
     }
 
     pub fn finish_frame(&mut self) {
-        self.pc = self.memory.address_at(PC) as u32;
-        while self.step_counter <= 65535 {
+        for _ in self.step_counter..65536 {
             self.step();
         }
-        self.step_counter = 0;
     }
 
     pub fn get_video_slice(&self) -> &[u8] {
