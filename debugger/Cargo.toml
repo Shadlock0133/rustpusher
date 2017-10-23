@@ -6,4 +6,4 @@ version = "0.1.0"
 [dependencies]
 clap = "2.26.2"
 minifb = "0.10.3"
-rustpusher-cpu = { path = "../rustpusher-cpu" }
+rustpusher-cpu = { path = "../cpu" }
