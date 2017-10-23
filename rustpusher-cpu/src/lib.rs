@@ -27,15 +27,12 @@ pub struct Memory {
 
 impl Memory {
     pub fn new() -> Self {
-        Self {
-            inner: box [0; FULL_MEMORY],
-        }
+        Self { inner: box [0; FULL_MEMORY] }
     }
 
     pub fn address_at(&self, offset: usize) -> usize {
-        self.inner[offset] as usize * BANK +
-        self.inner[offset + 1] as usize * PAGE +
-        self.inner[offset + 2] as usize
+        self.inner[offset] as usize * BANK + self.inner[offset + 1] as usize * PAGE +
+            self.inner[offset + 2] as usize
     }
 
     pub fn clear(&mut self) {
@@ -71,9 +68,9 @@ impl<I: SliceIndex<[u8]>> IndexMut<I> for Memory {
 }
 
 pub struct Cpu {
-    memory: Memory,
+    pub memory: Memory,
     pc: u32,
-    step_counter: u32,
+    step: u32,
 }
 
 impl Cpu {
@@ -81,8 +78,26 @@ impl Cpu {
         Self {
             memory: Memory::new(),
             pc: 0,
-            step_counter: 0,
+            step: 0,
         }
+    }
+
+    pub fn default_palette() -> [[u8; 4]; 256] {
+        let mut palette = [[0; 4]; 256];
+        for index in 0..256 {
+            match index {
+                0x00...0xd7 => {
+                    palette[index] = [
+                        (index as u32 / 36 * 0x33) as u8,
+                        (index as u32 / 6 % 6 * 0x33) as u8,
+                        (index as u32 % 6 * 0x33) as u8,
+                        0,
+                    ]
+                }
+                _ => (),
+            }
+        }
+        palette
     }
 
     pub fn load_file<P: AsRef<Path>>(&mut self, file: P) -> CpuResult {
@@ -105,31 +120,31 @@ impl Cpu {
         self.memory[INPUT + 1] = input.1;
     }
 
-    pub fn step(&mut self) {
-        if self.step_counter == 0 {
+    pub fn cycle(&mut self) {
+        if self.step == 0 {
             self.pc = self.memory.address_at(PC) as u32;
         }
-        self.step_counter += 1;
+        self.step += 1;
         let pc = self.pc as usize;
         let src = self.memory.address_at(pc);
         let byte = self.memory[src];
         let dst = self.memory.address_at(pc + 3);
         self.memory[dst] = byte;
         self.pc = self.memory.address_at(pc + 6) as u32;
-        if self.step_counter > 65535 {
-            self.step_counter = 0;
+        if self.step > 65535 {
+            self.step = 0;
         }
-    }
-
-    pub fn get_step(&self) -> u32 {
-        self.step_counter
     }
 
     pub fn finish_frame(&mut self) {
-        for _ in self.step_counter..65536 {
-            self.step();
+        for _ in self.step..65536 {
+            self.cycle();
         }
     }
+
+    pub fn pc(&self) -> u32 { self.pc }
+
+    pub fn step(&self) -> u32 { self.step }
 
     pub fn get_video_slice(&self) -> &[u8] {
         let offset = self.memory[VIDEO] as usize * BANK;

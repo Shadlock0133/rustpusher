@@ -25,14 +25,16 @@ impl RPCore {
     }
 
     fn default_palette() -> [(u8, u8, u8, u8); 256] {
-        let mut palette = [(0, 0 , 0, 0); 256];
+        let mut palette = [(0, 0, 0, 0); 256];
         for (index, out) in palette.iter_mut().enumerate() {
             *out = match index {
                 0x00...0xd7 => {
-                    ((index as u32 / 36 * 0x33) as u8,
-                    (index as u32 / 6 % 6 * 0x33) as u8,
-                    (index as u32 % 6 * 0x33) as u8,
-                    0)
+                    (
+                        (index as u32 / 36 * 0x33) as u8,
+                        (index as u32 / 6 % 6 * 0x33) as u8,
+                        (index as u32 % 6 * 0x33) as u8,
+                        0,
+                    )
                 }
                 _ => (0, 0, 0, 0),
             }
@@ -57,7 +59,7 @@ impl Core for RPCore {
         if game_data.is_empty() {
             return LoadGameResult::Failed(game_data);
         }
-        
+
         match if let Some(data) = game_data.data() {
             self.cpu.load_data(data)
         } else if let Some(path) = game_data.path() {
@@ -70,10 +72,10 @@ impl Core for RPCore {
                 LoadGameResult::Success(
                     AudioVideoInfo::new()
                         .video(256, 256, 60.0, PixelFormat::ARGB8888)
-                        .audio(SAMPLE_RATE as _)
+                        .audio(SAMPLE_RATE as _),
                 )
             }
-            Err(_) => LoadGameResult::Failed(game_data)
+            Err(_) => LoadGameResult::Failed(game_data),
         }
 
     }
