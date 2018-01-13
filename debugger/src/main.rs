@@ -1,3 +1,5 @@
+#![feature(box_syntax, ascii_ctype)]
+
 #[macro_use]
 extern crate clap;
 extern crate minifb;
@@ -5,6 +7,9 @@ extern crate rustpusher_cpu;
 mod font;
 #[macro_use]
 mod gprint;
+#[allow(unused_macros)]
+#[macro_use]
+mod minifb_macros;
 
 use clap::Arg;
 use minifb::*;
@@ -12,23 +17,61 @@ use rustpusher_cpu::*;
 
 use gprint::*;
 
+use std::ascii::AsciiExt;
+use std::cell::RefCell;
 use std::path::Path;
+use std::rc::Rc;
 use std::time::{Duration, Instant};
 use std::thread;
 
 enum State {
     Paused,
     Running,
-    RunningCycles,
-    #[doc(hidden)]
-    //#[allow(non_camel_case_types)]
-    _NonExhaustive,
 }
 
 use State::*;
 
 const WIDTH: usize = 512;
 const HEIGHT: usize = 512;
+
+struct InputInner {
+    pub open: bool,
+    pub text: String,
+}
+
+struct Input {
+    pub inner: Rc<RefCell<InputInner>>,
+}
+
+impl Input {
+    pub fn new() -> Self {
+        Self {
+            inner: Rc::new(RefCell::new(InputInner {
+                    open: false,
+                    text: String::new(),
+            }))
+        }
+    }
+}
+
+impl Clone for Input {
+    fn clone(&self) -> Self {
+        Self { inner: self.inner.clone() }
+    }
+}
+
+impl InputCallback for Input {
+    fn add_char(&mut self, uni_char: u32) {
+        if let Some(ch) = ::std::char::from_u32(uni_char) {
+            if ch.is_ascii_alphanumeric() || ch == ' ' {
+                let mut inner = self.inner.borrow_mut();
+                if inner.open {
+                    inner.text.push(ch);
+                }
+            }
+        }
+    }
+}
 
 struct Dbg {
     pub cpu: Cpu,
@@ -40,6 +83,7 @@ struct Dbg {
     pub frame: u64,
     pub step_size: u16,
     pub mem_peek: u32,
+    pub input: Input,
 }
 
 impl Dbg {
@@ -56,6 +100,10 @@ impl Dbg {
         let mut window = Window::new("Debugger", WIDTH, HEIGHT, wo).unwrap();
         window.update_with_buffer(&*window_buffer).unwrap();
 
+        let input = Input::new();
+        { input.inner.borrow_mut().open = true; }
+        window.set_input_callback(box input.clone());
+
         Self {
             cpu,
             rom_file: file,
@@ -66,6 +114,7 @@ impl Dbg {
             frame: 0,
             step_size: 1,
             mem_peek: 0,
+            input,
         }
     }
 
@@ -73,10 +122,66 @@ impl Dbg {
         let pal = Cpu::default_palette();
         let mut palette = [0; 256];
         for index in 0..256 {
-            palette[index] = (pal[index][0] as u32) << 16 | (pal[index][1] as u32) << 8 |
+            palette[index] =
+                (pal[index][0] as u32) << 16 |
+                (pal[index][1] as u32) << 8 |
                 (pal[index][2] as u32);
         }
         palette
+    }
+
+    fn handle_terminal(&mut self) {
+        if self.window.is_key_pressed(Key::Backspace, KeyRepeat::Yes) {
+            let _ = self.input.inner.borrow_mut().text.pop();
+        } else if self.window.is_key_pressed(Key::Enter, KeyRepeat::No) {
+            let text = self.input.inner.borrow().text.clone();
+            let mut ops = text.split_whitespace();
+            let instr = ops.next().unwrap_or("");
+            match instr {
+                "" => println!("empty command, wheee!"),
+                "c" | "continue" => self.unpause(),
+                "sf" | "step_frame" => self.finish_frame(),
+                "s" | "step" => self.cpu.cycle(),
+                "ms" | "memory_set" => {
+                    let addr = ops.next()
+                        .and_then(|x| x.parse::<usize>().ok())
+                        .and_then(|x| {
+                            if x < 0x1000000 {
+                                Some(x)
+                            } else {
+                                None
+                            }
+                        });
+                    let byte = ops.next().and_then(|x| x.parse::<u8>().ok());
+                    match (addr, byte) {
+                        (Some(addr), Some(byte)) => {
+                            self.cpu.memory[addr] = byte;
+                        },
+                        _ => {
+                            eprintln!("{}: wrong format", instr);
+                            eprintln!("  should be: ms (addr) (byte)");
+                        },
+                    }
+                }
+                _ => (),
+            };
+            { self.input.inner.borrow_mut().text.clear(); }
+        }
+    }
+
+    fn pause(&mut self) {
+        self.input.inner.borrow_mut().open = true;
+        self.state = Paused;
+    }
+
+    fn unpause(&mut self) {
+        self.input.inner.borrow_mut().open = false;
+        self.state = Running;
+    }
+
+    fn finish_frame(&mut self) {
+        self.frame += 1;
+        self.cpu.finish_frame();
     }
 
     pub fn run(&mut self) {
@@ -84,113 +189,58 @@ impl Dbg {
         while self.window.is_open() && !self.window.is_key_down(Key::Escape) {
             match self.state {
                 Paused => {
-                    if self.window.is_key_pressed(Key::L, KeyRepeat::Yes) {
-                        for _ in 0..self.step_size {
-                            self.cpu.cycle();
-                            if self.cpu.step() > 65535 {
-                                self.frame += 1;
-                            }
-                        }
-                    }
-                    if self.window.is_key_pressed(Key::I, KeyRepeat::Yes) {
-                        self.cpu.finish_frame();
-                        self.frame += 1;
-                    }
-                    if self.window.is_key_pressed(Key::U, KeyRepeat::No) {
-                        self.cpu.finish_frame();
-                        self.cpu.memory.clear();
-                        self.cpu.load_file(&self.rom_file).unwrap();
-                        self.frame = 0;
-                    }
+                    self.handle_terminal();
                 }
                 Running => {
-                    self.cpu.finish_frame();
-                    self.frame += 1;
-                }
-                RunningCycles => {
-                    for _ in 0..self.step_size {
-                        self.cpu.cycle();
-                        if self.cpu.step() > 65535 {
-                            self.frame += 1;
+                    self.input.inner.borrow_mut().open = false;
+                    fn toggle_bit(byte: &mut u8, offset: u8) {
+                        if *byte & 1 << offset == 0 {
+                            *byte |= 1 << offset;
+                        } else {
+                            *byte &= !(1 << offset);
                         }
                     }
-                }
-                _ => (),
-            }
-            if self.window.is_key_pressed(Key::P, KeyRepeat::No) {
-                self.state = match self.state {
-                    Paused => Running,
-                    _ => Paused,
-                };
-            }
-            if self.window.is_key_pressed(Key::O, KeyRepeat::No) {
-                self.state = match self.state {
-                    Paused => RunningCycles,
-                    _ => Paused,
-                };
-            }
-            if self.window.is_key_pressed(Key::Equal, KeyRepeat::Yes) {
-                self.step_size = self.step_size.saturating_add(1).min(65535);
-            }
-            if self.window.is_key_pressed(Key::Minus, KeyRepeat::Yes) {
-                self.step_size = self.step_size.saturating_sub(1).max(1);
-            }
-            if self.window.is_key_pressed(Key::Key0, KeyRepeat::No) {
-                self.step_size = 1;
-            }
-            macro_rules! process_input {
-                ( $( $key:expr => $f:expr ,)* ) => {
-                    $(if self.window.is_key_pressed($key, KeyRepeat::No) {
-                        $f;
-                    })*
-                };
-            }
-            fn toggle_bit(byte: &mut u8, offset: u8) {
-                if *byte & 1 << offset == 0 {
-                    *byte |= 1 << offset;
-                } else {
-                    *byte &= !(1 << offset);
+                    let mut input = (0u8, 0u8);
+                    handle_keys_down!(self.window,
+                        Key::X    => toggle_bit(&mut input.1, 0),
+                        Key::Key1 => toggle_bit(&mut input.1, 1),
+                        Key::Key2 => toggle_bit(&mut input.1, 2),
+                        Key::Key3 => toggle_bit(&mut input.1, 3),
+                        Key::Q    => toggle_bit(&mut input.1, 4),
+                        Key::W    => toggle_bit(&mut input.1, 5),
+                        Key::E    => toggle_bit(&mut input.1, 6),
+                        Key::A    => toggle_bit(&mut input.1, 7),
+                        Key::S    => toggle_bit(&mut input.0, 0),
+                        Key::D    => toggle_bit(&mut input.0, 1),
+                        Key::Z    => toggle_bit(&mut input.0, 2),
+                        Key::C    => toggle_bit(&mut input.0, 3),
+                        Key::Key4 => toggle_bit(&mut input.0, 4),
+                        Key::R    => toggle_bit(&mut input.0, 5),
+                        Key::F    => toggle_bit(&mut input.0, 6),
+                        Key::V    => toggle_bit(&mut input.0, 7),
+                    );
+                    self.cpu.process_input(input);
+                    self.finish_frame();
+                    if self.window.is_key_pressed(Key::Equal, KeyRepeat::Yes) {
+                        self.pause();
+                    }
                 }
             }
-            let mut input = (self.cpu.memory[0], self.cpu.memory[1]);
-            process_input!(
-                Key::X    => toggle_bit(&mut input.1, 0),
-                Key::Key1 => toggle_bit(&mut input.1, 1),
-                Key::Key2 => toggle_bit(&mut input.1, 2),
-                Key::Key3 => toggle_bit(&mut input.1, 3),
-                Key::Q    => toggle_bit(&mut input.1, 4),
-                Key::W    => toggle_bit(&mut input.1, 5),
-                Key::E    => toggle_bit(&mut input.1, 6),
-                Key::A    => toggle_bit(&mut input.1, 7),
-                Key::S    => toggle_bit(&mut input.0, 0),
-                Key::D    => toggle_bit(&mut input.0, 1),
-                Key::Z    => toggle_bit(&mut input.0, 2),
-                Key::C    => toggle_bit(&mut input.0, 3),
-                Key::Key4 => toggle_bit(&mut input.0, 4),
-                Key::R    => toggle_bit(&mut input.0, 5),
-                Key::F    => toggle_bit(&mut input.0, 6),
-                Key::V    => toggle_bit(&mut input.0, 7),
-            );
-            self.cpu.process_input(input);
-            // Directly display vram, with clearing
+            // Clear display
             *self.window_buffer = [0; WIDTH * HEIGHT];
+            // display vram 
             let video_slice = self.cpu.get_video_slice();
             for y in 0..256 {
                 for x in 0..256 {
-                    self.window_buffer[y * WIDTH + x] = self.palette[video_slice[y * 256 + x] as
-                                                                         usize];
+                    self.window_buffer[y * WIDTH + x] = 
+                        self.palette[video_slice[y * 256 + x] as usize];
                 }
             }
-            // Clear then display audio_ram as waveform
-            // We're already clearing screen, so optimize it
-            // Update: Done
+            // Display audio ram as waveform
             let audio_slice = self.cpu.get_audio_slice();
             for x in 0..256 {
                 let oy = ((256 + 127) - audio_slice[x] as usize) % 255;
-                // for y in 0..256 {
-                    self.window_buffer[oy * WIDTH + x + 256] = 0xffffff;
-                    //if y == oy { 0xffffff } else { 0 };
-                // }
+                self.window_buffer[oy * WIDTH + x + 256] = 0xffffff;
             }
             // Print current instruction + current status (frame, step)
             {
@@ -206,14 +256,14 @@ impl Dbg {
                     self.step_size
                 );
                 let input = (self.cpu.memory[0] as u16) << 8 | self.cpu.memory[1] as u16;
-                gprint!(&mut gp, 0, 256 + 8, gprint::WHITE, "input: {:016b}", input);
+                gprint!(&mut gp, 0, 256 + FONT_HEIGHT, gprint::WHITE, "input: {:016b}", input);
                 let init = self.cpu.memory.address_at(2);
                 let video = self.cpu.memory[5];
                 let audio = (self.cpu.memory[6] as u16) << 8 | self.cpu.memory[7] as u16;
                 gprint!(
                     &mut gp,
                     0,
-                    256 + 16,
+                    256 + 2 * FONT_HEIGHT,
                     gprint::WHITE,
                     "init: {:06x}, video: {:02x}0000, audio: {:04x}00",
                     init,
@@ -247,12 +297,19 @@ impl Dbg {
                     jmp
                 );
 
-                self.mem_peek = ((pc as u32) & 0xfffffff0).saturating_sub(64);
+                // Command line
+                gprint!(
+                    &mut gp, 0, 256 + 4 * FONT_HEIGHT, gprint::YELLOW,
+                    "{}", self.input.inner.borrow().text
+                );
+
+                // Memory dump (2 page long)
+                self.mem_peek = ((self.mem_peek as u32) & 0xfffffff0).saturating_sub(64);
                 for y in 0..32 {
                     gprint!(
                         &mut gp,
                         256,
-                        y * 8 + 256,
+                        256 + y * FONT_HEIGHT,
                         gprint::WHITE,
                         "{:06x}",
                         (self.mem_peek as usize) + y * 16
@@ -271,13 +328,14 @@ impl Dbg {
                         gprint!(
                             &mut gp,
                             256 + (8 * FONT_WIDTH) + x * (3 * FONT_WIDTH),
-                            y * 8 + 256,
+                            y * FONT_HEIGHT + 256,
                             colour,
                             " {:02x}",
                             byte
                         );
                     }
                 }
+                // Gprint debug stuff (printable chars table + color legend)
                 for c in 0x20..0x80 {
                     gprint!(&mut gp,
                         (c % 16) * FONT_WIDTH,
@@ -285,18 +343,19 @@ impl Dbg {
                         gprint::WHITE,
                         "{}", c as u8 as char);
                 }
-                gprint!(&mut gp, FONT_HEIGHT * 0, HEIGHT - 8, gprint::GREEN, "00");
-                gprint!(&mut gp, FONT_HEIGHT * 1, HEIGHT - 8, gprint::BLUE, "7f");
-                gprint!(&mut gp, FONT_HEIGHT * 2, HEIGHT - 8, gprint::RED, "ff");
-                gprint!(&mut gp, FONT_HEIGHT * 3, HEIGHT - 8, gprint::YELLOW, "20..7f");
-                gprint!(&mut gp, FONT_HEIGHT * 6, HEIGHT - 8, gprint::WHITE, "99");
+                gprint!(&mut gp, 0 * FONT_HEIGHT, HEIGHT - 8, gprint::GREEN, "00");
+                gprint!(&mut gp, 1 * FONT_HEIGHT, HEIGHT - 8, gprint::BLUE, "7f");
+                gprint!(&mut gp, 2 * FONT_HEIGHT, HEIGHT - 8, gprint::RED, "ff");
+                gprint!(&mut gp, 3 * FONT_HEIGHT, HEIGHT - 8, gprint::YELLOW, "20..7f");
+                gprint!(&mut gp, 6 * FONT_HEIGHT, HEIGHT - 8, gprint::WHITE, "99");
             }
 
             self.window
                 .update_with_buffer(&*self.window_buffer)
                 .unwrap();
             
-            if let Some(time) = Duration::new(0, 1_000_000_000 / 60).checked_sub(timer.elapsed()) {
+            let delay = Duration::new(0, 1_000_000_000 / 60);
+            if let Some(time) = delay.checked_sub(timer.elapsed()) {
                 thread::sleep(time);
             }
         }
@@ -310,11 +369,6 @@ fn main() {
 
     let rom_file = matches.value_of("INPUT").unwrap();
     let mut dbg = Dbg::new(rom_file);
-
-    // for x in 0x20..0x80 {
-    //     print!("{}", x as u8 as char);
-    //     if x % 16 == 15 { println!(); }
-    // }
 
     dbg.run();
 }
