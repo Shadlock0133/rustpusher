@@ -4,6 +4,7 @@
 extern crate clap;
 extern crate minifb;
 extern crate rustpusher_cpu;
+
 mod font;
 #[macro_use]
 mod gprint;
@@ -17,7 +18,6 @@ use rustpusher_cpu::*;
 
 use gprint::*;
 
-use std::ascii::AsciiExt;
 use std::cell::RefCell;
 use std::path::Path;
 use std::rc::Rc;
@@ -56,7 +56,7 @@ impl Input {
 
 impl Clone for Input {
     fn clone(&self) -> Self {
-        Self { inner: self.inner.clone() }
+        Self { inner: Rc::clone(&self.inner) }
     }
 }
 
@@ -322,7 +322,7 @@ impl Dbg {
                             0x00 => gprint::GREEN,
                             0x7f => gprint::BLUE,
                             0xff => gprint::RED,
-                            0x20...0x7f => gprint::YELLOW,
+                            0x20...0x7e => gprint::YELLOW,
                             _ => gprint::WHITE,
                         };
                         gprint!(

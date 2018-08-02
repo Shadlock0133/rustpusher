@@ -38,7 +38,7 @@ impl<'buf> GPrinter<'buf> {
 
 macro_rules! gprint {
     ( $buf:expr, $x:expr, $y:expr, $colour:expr, $fmt:expr ) => {
-        GPrinter::write($buf, $x, $y, $colour, &format!($fmt))
+        GPrinter::write($buf, $x, $y, $colour, &$fmt)
     };
     ( $buf:expr, $x:expr, $y:expr, $colour:expr, $fmt:expr, $($arg:expr),* ) => {
         GPrinter::write($buf, $x, $y, $colour, &format!($fmt, $($arg),*))
